@@ -2,12 +2,13 @@ const Book = require('../models/Book');
 
 exports.getBooks = async (req, res) => {
     try {
-        const { title, author, isbn, category } = req.query;
+        const { title, author, isbn, category, genre } = req.query;
         let query = {};
         if (title) query.title = new RegExp(title, 'i');
         if (author) query.author = new RegExp(author, 'i');
         if (isbn) query.ISBN = isbn;
         if (category) query.category_id = category;
+        if (genre) query.genre = new RegExp(genre, 'i');
 
         const books = await Book.find(query).populate('category_id');
         res.json(books);
