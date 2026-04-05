@@ -9,11 +9,14 @@ const BookSearch = () => {
     const [search, setSearch] = useState({ title: '', author: '', isbn: '', genre: '' });
     const [loading, setLoading] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
-    const [newBook, setNewBook] = useState({ title: '', author: '', ISBN: '', category_id: '', genre: '' });
+    const [newBook, setNewBook] = useState({ title: '', author: '', ISBN: '', category_id: '', genre: '', isEbook: false, price: 0, sampleUrl: '', fileUrl: '' });
     const [showBorrowModal, setShowBorrowModal] = useState(false);
     const [selectedBookId, setSelectedBookId] = useState(null);
     const [borrowDuration, setBorrowDuration] = useState(14);
     const [categories, setCategories] = useState([]);
+    const [showReservationsModal, setShowReservationsModal] = useState(false);
+    const [activeReservations, setActiveReservations] = useState([]);
+    const [activeReservationBookId, setActiveReservationBookId] = useState(null);
 
     useEffect(() => {
         fetchBooks();
@@ -55,6 +58,28 @@ const BookSearch = () => {
             alert(err.response?.data?.message || 'Borrowing failed');
         }
     };
+
+    const handleReserve = async (bookId) => {
+        try {
+            await axios.post(`http://localhost:5000/api/borrow/reserve/${bookId}`);
+            alert('Book successfully reserved! You have been added to the waitlist.');
+            fetchBooks();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Could not place reservation');
+        }
+    };
+
+    const handleViewWaitlist = async (book) => {
+        try {
+            const res = await axios.get(`http://localhost:5000/api/borrow/reservations/${book._id}`);
+            setActiveReservations(res.data);
+            setActiveReservationBookId(book._id);
+            setShowReservationsModal(true);
+        } catch (err) {
+            alert('Failed to get waitlist');
+        }
+    };
+
 
     const handleAddBook = async (e) => {
         e.preventDefault();
@@ -132,6 +157,18 @@ const BookSearch = () => {
                                     }}>
                                         {book.status}
                                     </span>
+                                    {book.isEbook && (
+                                        <span style={{
+                                            padding: '0.25rem 0.75rem',
+                                            borderRadius: '20px',
+                                            fontSize: '0.8rem',
+                                            background: '#e0e7ff',
+                                            color: '#3730a3',
+                                            marginLeft: '10px'
+                                        }}>
+                                            E-Book
+                                        </span>
+                                    )}
                                     <span style={{ color: 'var(--text-light)', fontSize: '0.8rem' }}>ISBN: {book.ISBN}</span>
                                 </div>
                                 {book.genre && (
@@ -140,15 +177,31 @@ const BookSearch = () => {
                                     </p>
                                 )}
                             </div>
-                            <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
-                                {book.status === 'Available' ? (
+                            <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                {book.isEbook ? (
+                                    <>
+                                        {book.sampleUrl && (
+                                            <a href={book.sampleUrl} target="_blank" rel="noreferrer" className="btn" style={{ flex: 1, background: '#f1f5f9', textAlign: 'center', textDecoration: 'none', color: '#0f172a' }}>Read Sample</a>
+                                        )}
+                                        <button className="btn btn-primary" style={{ flex: 1 }}>{book.price > 0 ? `Buy for Ksh ${book.price}` : 'Access Full Book'}</button>
+                                    </>
+                                ) : (book.status === 'Available' ? (
                                     <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => {
                                         setSelectedBookId(book._id);
                                         setShowBorrowModal(true);
                                     }}>Borrow</button>
                                 ) : (
-                                    <button className="btn" style={{ flex: 1, background: '#e2e8f0', cursor: 'not-allowed' }} disabled>Unavailable</button>
-                                )}
+                                    <>
+                                        {book.status === 'Borrowed' ? (
+                                            <>
+                                                <button className="btn btn-primary" style={{ flex: 1, background: '#f59e0b', color: '#fff' }} onClick={() => handleReserve(book._id)}>Reserve Book</button>
+                                                <button className="btn" style={{ flex: 1, background: '#fef3c7', color: '#b45309' }} onClick={() => handleViewWaitlist(book)}>View Waitlist</button>
+                                            </>
+                                        ) : (
+                                            <button className="btn" style={{ flex: 1, background: '#e2e8f0', cursor: 'not-allowed' }} disabled>Unavailable</button>
+                                        )}
+                                    </>
+                                ))}
                                 {user.role !== 'Student' && (
                                     <>
                                         <button className="btn" style={{ background: '#e2e8f0' }}><FaEdit /></button>
@@ -226,11 +279,68 @@ const BookSearch = () => {
                             <option value="">Select Category</option>
                             {categories.map(cat => <option key={cat._id} value={cat._id}>{cat.name}</option>)}
                         </select>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem' }}>
+                            <input
+                                type="checkbox"
+                                checked={newBook.isEbook}
+                                onChange={(e) => setNewBook({ ...newBook, isEbook: e.target.checked })}
+                            />
+                            Is this an E-Book?
+                        </label>
+                        {newBook.isEbook && (
+                            <>
+                                <input type="number" placeholder="Price (Optional, 0 for free)" className="input-field" value={newBook.price} onChange={(e) => setNewBook({ ...newBook, price: e.target.value })} />
+                                <input type="url" placeholder="Sample URL" className="input-field" value={newBook.sampleUrl} onChange={(e) => setNewBook({ ...newBook, sampleUrl: e.target.value })} />
+                            </>
+                        )}
                         <div style={{ display: 'flex', gap: '1rem' }}>
                             <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Save</button>
                             <button type="button" className="btn" style={{ flex: 1 }} onClick={() => setShowAddModal(false)}>Cancel</button>
                         </div>
                     </form>
+                </div>
+            )}
+
+            {showReservationsModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'grid', placeItems: 'center', zIndex: 1000 }}>
+                    <div className="glass-card" style={{ width: '100%', maxWidth: '500px', maxHeight: '80vh', overflowY: 'auto' }}>
+                        <h2 style={{ marginBottom: '1.5rem' }}>Waitlist Queue</h2>
+                        {activeReservations.length === 0 ? (
+                            <p style={{ color: 'var(--text-light)', marginBottom: '1.5rem' }}>No one is currently waiting for this book. You'll be first!</p>
+                        ) : (
+                            <ul style={{ listStyle: 'none', padding: 0, marginBottom: '2rem' }}>
+                                {activeReservations.map((res, idx) => (
+                                    <li key={res._id} style={{ 
+                                        padding: '1rem', 
+                                        borderBottom: '1px solid var(--border)', 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        gap: '1rem',
+                                        background: res.user_id?._id === user._id ? '#e0f2fe' : 'transparent',
+                                        borderRadius: '8px'
+                                    }}>
+                                        <div style={{ 
+                                            width: '30px', 
+                                            height: '30px', 
+                                            background: 'var(--primary)', 
+                                            color: '#fff', 
+                                            borderRadius: '50%', 
+                                            display: 'grid', 
+                                            placeItems: 'center', 
+                                            fontWeight: 'bold' 
+                                        }}>
+                                            {idx + 1}
+                                        </div>
+                                        <div>
+                                            <strong>{res.user_id?.name || 'Unknown User'}</strong>
+                                            {res.user_id?._id === user._id && <span style={{ marginLeft: '10px', fontSize: '0.8rem', color: '#0369a1', fontWeight: 'bold' }}>(You)</span>}
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                        <button className="btn" style={{ width: '100%' }} onClick={() => setShowReservationsModal(false)}>Close</button>
+                    </div>
                 </div>
             )}
         </div>

@@ -11,6 +11,7 @@ import BookSearch from './pages/BookSearch';
 import BorrowHistory from './pages/BorrowHistory';
 import FineManagement from './pages/FineManagement';
 import UserManagement from './pages/UserManagement';
+import Notifications from './pages/Notifications';
 
 const ProtectedRoute = ({ children, roles = [] }) => {
     const { user, loading } = useAuth();
@@ -36,6 +37,7 @@ function App() {
                             <Route path="/history" element={<ProtectedRoute><BorrowHistory /></ProtectedRoute>} />
                             <Route path="/fines" element={<ProtectedRoute><FineManagement /></ProtectedRoute>} />
                             <Route path="/users" element={<ProtectedRoute roles={['Admin']}><UserManagement /></ProtectedRoute>} />
+                            <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
                         </Routes>
                     </main>
                 </div>

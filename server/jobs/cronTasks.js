@@ -63,18 +63,34 @@ async function processDailyFinesAndAlerts() {
                      }
                 }
             } 
-            // 2. Due Date Warnings (e.g. Due tomorrow)
+            // 2. Due Date Warnings
             else {
                 const diffTime = dueDate - now;
                 const diffDaysToDue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                if (diffDaysToDue === 1) { // Due tomorrow
-                    const msg = `Reminder: The book "${book.title}" is due tomorrow. Please return it to avoid fines.`;
-                    
-                    // Prevent spamming same notification
+                const diffHoursToDue = diffTime / (1000 * 60 * 60);
+                
+                let msg = '';
+                let sendNotif = false;
+                
+                if (diffDaysToDue === 7) { // 1 week before
+                    msg = `Reminder: The book "${book.title}" is due in 1 week (${dueDate.toDateString()}). Please plan to return it.`;
+                    sendNotif = true;
+                } else if (diffDaysToDue === 1) { // Due tomorrow
+                    msg = `Reminder: The book "${book.title}" is due tomorrow. Please return it to avoid fines.`;
+                    sendNotif = true;
+                } else if (diffHoursToDue <= 1 && diffHoursToDue > 0) { // 1 hour before
+                    msg = `Urgent: The book "${book.title}" is due in less than 1 hour. Please return it immediately to avoid fines.`;
+                    sendNotif = true;
+                }
+                
+                if (sendNotif) {
+                    // Prevent spamming same type of notification
+                    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
                     const existingWarn = await Notification.findOne({
                         user_id: user._id,
+                        message: { $regex: book.title }, // Check if message contains book title
                         type: 'DUE_DATE',
-                        createdAt: { $gte: startOfToday }
+                        createdAt: { $gte: oneDayAgo }
                     });
                     
                     if (!existingWarn) {
@@ -86,7 +102,7 @@ async function processDailyFinesAndAlerts() {
                         } catch(err) {}
                         
                         if (user.email) {
-                            sendMail(user.email, "Book Due Tomorrow", `<p>${msg}</p>`);
+                            sendMail(user.email, "Book Due Reminder", `<p>${msg}</p>`);
                         }
                     }
                 }
@@ -98,8 +114,8 @@ async function processDailyFinesAndAlerts() {
 }
 
 function start() {
-    // Run at midnight every day
-    cron.schedule('0 0 * * *', processDailyFinesAndAlerts);
+    // Run every hour
+    cron.schedule('0 * * * *', processDailyFinesAndAlerts);
     console.log("Cron jobs scheduled.");
 }
 
